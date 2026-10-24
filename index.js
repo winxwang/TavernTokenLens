@@ -1,7 +1,21 @@
 // Tavern Token Lens v1.0.0
 // Standalone SillyTavern/TauriTavern frontend extension.
 // API-reported usage is preferred when available; otherwise text-based estimates are explicitly labelled.
-import { eventSource, event_types, getContext } from "../../../script.js";
+// TauriTavern uses a custom WebView protocol. Load the optional SillyTavern API
+// dynamically so a missing/incompatible script.js does not prevent the panel itself
+// from loading. Generation events and context-based details are enabled when available.
+let eventSource = null;
+let event_types = {};
+let getContext = () => ({});
+const coreApiPromise = import("../../../script.js").then((api) => {
+    eventSource = api.eventSource || null;
+    event_types = api.event_types || {};
+    getContext = typeof api.getContext === "function" ? api.getContext : () => ({});
+    return true;
+}).catch((error) => {
+    console.warn("[TavernTokenLens] Optional script.js API unavailable; loading panel in fallback mode.", error);
+    return false;
+});
 
 const EXT = "TavernTokenLens";
 const STORE_KEY = "TavernTokenLens.stats.v1";
@@ -282,7 +296,8 @@ function installUsageProbe() {
         return response;
     };
 }
-function init() {
+async function init() {
+    await coreApiPromise;
     mount();
     installUsageProbe();
     safeListen("GENERATION_STARTED", onStart);
